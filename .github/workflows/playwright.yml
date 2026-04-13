@@ -1,27 +1,119 @@
 name: Playwright Tests
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+# push / PR  → auto-run whenever code is pushed
+# workflow_dispatch → manual run from GitHub UI (Actions tab → Run workflow)
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
+
 jobs:
   test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
+    name: Chromium E2E — AgentOven
+    # ── IMPORTANT ─────────────────────────────────────────────────────────────
+    # Must run on the self-hosted runner (your Windows machine) because
+    # the tests hit http://localhost:8085 (AgentOven) and
+    # http://localhost:3006 (Weather MCP) — both run locally.
+    runs-on: self-hosted
+    timeout-minutes: 30
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-    - name: Run Playwright tests
-      run: npx playwright test
-    - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
+      # ── 1. Checkout code ────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Node setup ────────────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      # ── 3. Install npm deps ──────────────────────────────────────────────────
+      - name: Install dependencies
+        run: npm ci
+
+      # ── 4. Install Playwright Chromium only ──────────────────────────────────
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      # ── 5. Verify AgentOven is reachable ─────────────────────────────────────
+      - name: Check AgentOven is up
+        shell: bash
+        run: |
+          echo "Checking http://localhost:8085 ..."
+          for i in 1 2 3 4 5; do
+            if curl -s --max-time 5 http://localhost:8085 > /dev/null 2>&1; then
+              echo "✅ AgentOven is reachable"
+              exit 0
+            fi
+            echo "Attempt $i failed — retrying in 5s..."
+            sleep 5
+          done
+          echo "❌ AgentOven is not reachable at localhost:8085. Start the app before pushing."
+          exit 1
+
+      # ── 6. Run tests ──────────────────────────────────────────────────────────
+      - name: Run Playwright Tests
+        run: npx playwright test --headed --project=chromium
+
+      # ── 7. Upload Playwright HTML report as artifact ──────────────────────────
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-run-${{ github.run_number }}
+          path: playwright-report/
+          retention-days: 30
+
+      # ── 8. Send PASS email ────────────────────────────────────────────────────
+      - name: Send PASS notification
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          secure: false
+          username: ${{ secrets.NOTIFY_EMAIL }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASSWORD }}
+          subject: "✅ [AgentOven] All 18 Playwright Tests PASSED — Run #${{ github.run_number }}"
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: "GitHub Actions <${{ secrets.NOTIFY_EMAIL }}>"
+          html_body: |
+            <h2 style="color:#22c55e">✅ All 18 Playwright Tests PASSED</h2>
+            <table style="font-family:sans-serif;border-collapse:collapse">
+              <tr><td style="padding:4px 12px;font-weight:bold">Repository</td><td>${{ github.repository }}</td></tr>
+              <tr><td style="padding:4px 12px;font-weight:bold">Branch</td><td>${{ github.ref_name }}</td></tr>
+              <tr><td style="padding:4px 12px;font-weight:bold">Commit</td><td>${{ github.sha }}</td></tr>
+              <tr><td style="padding:4px 12px;font-weight:bold">Triggered by</td><td>${{ github.event_name }}</td></tr>
+              <tr><td style="padding:4px 12px;font-weight:bold">Run #</td><td>${{ github.run_number }}</td></tr>
+            </table>
+            <p><a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" style="color:#3b82f6">View full workflow run →</a></p>
+
+      # ── 9. Send FAIL email ────────────────────────────────────────────────────
+      - name: Send FAIL notification
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          secure: false
+          username: ${{ secrets.NOTIFY_EMAIL }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASSWORD }}
+          subject: "❌ [AgentOven] Playwright Tests FAILED — Run #${{ github.run_number }}"
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: "GitHub Actions <${{ secrets.NOTIFY_EMAIL }}>"
+          html_body: |
+            <h2 style="color:#ef4444">❌ Playwright Tests FAILED</h2>
+            <p>One or more tests failed. Check the workflow run for screenshots and error details.</p>
+            <table style="font-family:sans-serif;border-collapse:collapse">
+              <tr><td style="padding:4px 12px;font-weight:bold">Repository</td><td>${{ github.repository }}</td></tr>
+              <tr><td style="padding:4px 12px;font-weight:bold">Branch</td><td>${{ github.ref_name }}</td></tr>
+              <tr><td style="padding:4px 12px;font-weight:bold">Commit</td><td>${{ github.sha }}</td></tr>
+              <tr><td style="padding:4px 12px;font-weight:bold">Triggered by</td><td>${{ github.event_name }}</td></tr>
+              <tr><td style="padding:4px 12px;font-weight:bold">Run #</td><td>${{ github.run_number }}</td></tr>
+            </table>
+            <p><a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" style="color:#ef4444">View failed run and download screenshots →</a></p>
