@@ -46,6 +46,40 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await expect(page.getByRole('heading', { name: 'Agents', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Re-cook' })).toBeVisible();
     await page.waitForTimeout(STEP_PAUSE);
+
+    // ── Open Integrate modal ──────────────────────────────────────────────────
+    await page.getByRole('button', { name: 'Integrate' }).click();
+    await page.waitForTimeout(ACTION_PAUSE);
+    await expect(page.getByRole('heading', { name: /Integrate/i })).toBeVisible();
+
+    // ── Invoke tab (default) ──────────────────────────────────────────────────
+    await page.getByRole('button', { name: 'Invoke' }).click();
+    await page.waitForTimeout(5000);
+    const ssInvoke = await page.screenshot({ fullPage: true });
+    await info.attach('Integrate — Invoke tab', { body: ssInvoke, contentType: 'image/png' });
+
+    // ── Session tab ───────────────────────────────────────────────────────────
+    await page.getByRole('button', { name: 'Session' }).click();
+    await page.waitForTimeout(5000);
+    const ssSession = await page.screenshot({ fullPage: true });
+    await info.attach('Integrate — Session tab', { body: ssSession, contentType: 'image/png' });
+
+    // ── Test tab ──────────────────────────────────────────────────────────────
+    await page.getByRole('button', { name: 'Test', exact: true }).click();
+    await page.waitForTimeout(5000);
+    const ssTest = await page.screenshot({ fullPage: true });
+    await info.attach('Integrate — Test tab', { body: ssTest, contentType: 'image/png' });
+
+    // ── Agent Card tab ────────────────────────────────────────────────────────
+    await page.getByRole('button', { name: 'Agent Card' }).click();
+    await page.waitForTimeout(5000);
+    const ssAgentCard = await page.screenshot({ fullPage: true });
+    await info.attach('Integrate — Agent Card tab', { body: ssAgentCard, contentType: 'image/png' });
+
+    // ── Close modal ───────────────────────────────────────────────────────────
+    await page.keyboard.press('Escape');
+    await expect(page.locator('div.fixed.inset-0')).toHaveCount(0);
+    await page.waitForTimeout(STEP_PAUSE);
   });
 
   // ── 03 ───────────────────────────────────────────────────────────────────────
