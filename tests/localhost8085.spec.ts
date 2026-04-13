@@ -52,26 +52,29 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await page.waitForTimeout(ACTION_PAUSE);
     await expect(page.getByRole('heading', { name: /Integrate/i })).toBeVisible();
 
+    // Scope all tab interactions inside the modal overlay
+    const modal = page.locator('div.fixed.inset-0');
+
     // ── Invoke tab (default) ──────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Invoke' }).click();
+    await modal.getByRole('button', { name: 'Invoke' }).click();
     await page.waitForTimeout(5000);
     const ssInvoke = await page.screenshot({ fullPage: true });
     await info.attach('Integrate — Invoke tab', { body: ssInvoke, contentType: 'image/png' });
 
     // ── Session tab ───────────────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Session' }).click();
+    await modal.getByRole('button', { name: 'Session' }).click();
     await page.waitForTimeout(5000);
     const ssSession = await page.screenshot({ fullPage: true });
     await info.attach('Integrate — Session tab', { body: ssSession, contentType: 'image/png' });
 
     // ── Test tab ──────────────────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Test', exact: true }).click();
+    await modal.getByRole('button', { name: 'Test', exact: true }).click();
     await page.waitForTimeout(5000);
     const ssTest = await page.screenshot({ fullPage: true });
     await info.attach('Integrate — Test tab', { body: ssTest, contentType: 'image/png' });
 
     // ── Agent Card tab ────────────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Agent Card' }).click();
+    await modal.getByRole('button', { name: 'Agent Card' }).click();
     await page.waitForTimeout(5000);
     const ssAgentCard = await page.screenshot({ fullPage: true });
     await info.attach('Integrate — Agent Card tab', { body: ssAgentCard, contentType: 'image/png' });
