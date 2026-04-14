@@ -25,18 +25,9 @@ async function toPDF(htmlFile) {
   console.log('  → Loading HTML report...');
   await page.goto(fileUrl, { waitUntil: 'networkidle' });
 
-  // Expand ALL test cards so every screenshot appears in the PDF
-  await page.evaluate(() => {
-    document.querySelectorAll('[id^="body-"]').forEach(el => {
-      el.style.display = 'block';
-    });
-    document.querySelectorAll('[id^="arr-"]').forEach(el => {
-      el.style.transform = 'rotate(180deg)';
-    });
-  });
-
-  // Let all base64 images fully render before printing
-  await page.waitForTimeout(3000);
+  // Cards stay collapsed in the PDF — management gets a clean summary list.
+  // Screenshots remain accessible in the interactive HTML report.
+  await page.waitForTimeout(1000);
 
   console.log('  → Rendering PDF...');
   await page.pdf({

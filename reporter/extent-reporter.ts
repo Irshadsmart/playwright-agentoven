@@ -179,9 +179,8 @@ function buildHTML(
 
     return `
     <div id="test-${i}" style="border:1px solid #e5e7eb;border-radius:10px;margin-bottom:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
-      <!-- Test header -->
-      <div onclick="toggle('body-${i}')"
-           style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:${bg};cursor:pointer;user-select:none">
+      <!-- Test header — click anywhere on the row (or just the arrow) to toggle -->
+      <div onclick="toggle('body-${i}')" class="card-header" style="background:${bg}">
         <div style="display:flex;align-items:center;gap:12px">
           <span style="background:${color};color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.5px">${label}</span>
           <span style="font-weight:600;color:#1e293b;font-size:14px">${esc(r.title)}</span>
@@ -190,7 +189,7 @@ function buildHTML(
         <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:#6b7280">
           <span>⏱ ${dSec}s</span>
           <span>🕐 ${fmt(r.startTime)}</span>
-          <span id="arr-${i}" style="font-size:16px;transition:transform .2s">▼</span>
+          <span id="arr-${i}" class="toggle-btn">▼</span>
         </div>
       </div>
       <!-- Test body -->
@@ -209,25 +208,25 @@ function buildHTML(
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Extent Report — AgentOven | ${fmt(runStart)}</title>
+<title>AgentOven Automation Report | ${fmt(runStart)}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Segoe UI',system-ui,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
   a{color:#3b82f6;text-decoration:none}
   table{border-collapse:collapse;width:100%}
+  .card-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;user-select:none;transition:filter .15s}
+  .card-header:hover{filter:brightness(.96)}
+  .toggle-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;border:1.5px solid rgba(0,0,0,.15);background:rgba(255,255,255,.55);font-size:13px;flex-shrink:0;transition:transform .25s,background .15s}
+  .card-header:hover .toggle-btn{background:rgba(255,255,255,.85)}
   @media print {
-    /* Ensure backgrounds (dark header, coloured badges) print correctly */
+    /* Ensure backgrounds and badge colours print correctly */
     *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-    /* Expand every test card body so all screenshots appear in the PDF */
-    [id^="body-"]{display:block!important}
-    [id^="arr-"]{transform:rotate(180deg)!important}
-    /* Keep each test card together — avoid splitting across pages */
-    [id^="test-"]{page-break-inside:avoid;break-inside:avoid;margin-bottom:12px!important}
-    /* Remove click cursor on headers */
-    [onclick]{cursor:default!important}
-    /* Give each screenshot a page break hint if it is tall */
-    img{max-width:100%!important;page-break-inside:avoid;break-inside:avoid}
-    /* Tighten outer margins — A4 already has margin set in page.pdf() */
+    /* PDF shows collapsed summary — no screenshots, clean list for management */
+    [id^="body-"]{display:none!important}
+    /* Remove pointer cursor in PDF */
+    .card-header{cursor:default!important}
+    /* Keep each test card on one line — never split across pages */
+    [id^="test-"]{page-break-inside:avoid;break-inside:avoid;margin-bottom:8px!important}
     body{background:#f1f5f9!important}
   }
 </style>
@@ -239,7 +238,7 @@ function buildHTML(
   <div style="display:flex;align-items:center;gap:14px">
     <div style="font-size:26px">🧪</div>
     <div>
-      <div style="font-size:20px;font-weight:700;letter-spacing:.3px">Extent Automation Report</div>
+      <div style="font-size:20px;font-weight:700;letter-spacing:.3px">AgentOven Automation Report</div>
       <div style="font-size:12px;color:#94a3b8;margin-top:2px">AgentOven UI — End-to-End Test Suite</div>
     </div>
   </div>
@@ -306,7 +305,7 @@ function buildHTML(
   <div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid #e5e7eb;overflow:hidden;margin-bottom:24px">
     <div style="background:#1e293b;color:#fff;padding:13px 18px;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:space-between">
       <span>🧾 Test Results</span>
-      <span style="font-size:12px;font-weight:400;color:#94a3b8">Click a row to expand details</span>
+      <span style="font-size:12px;font-weight:400;color:#94a3b8">Click the ▼ button to expand screenshots</span>
     </div>
     <div style="padding:16px">
       ${testCards || '<p style="color:#9ca3af;padding:8px">No test records found.</p>'}
@@ -315,7 +314,7 @@ function buildHTML(
 
   <!-- Footer -->
   <div style="text-align:center;font-size:12px;color:#9ca3af;padding-bottom:32px">
-    Generated by <strong>Playwright Extent Reporter</strong> · ${fmt(runEnd)} · AgentOven QA Automation
+    Generated by <strong>AgentOven Automation Reporter</strong> · ${fmt(runEnd)} · Powered by Playwright
   </div>
 
 </div>
