@@ -2,8 +2,9 @@ import {
   Reporter, TestCase, TestResult,
   FullResult, FullConfig, Suite,
 } from '@playwright/test/reporter';
-import * as fs   from 'fs';
-import * as path from 'path';
+import * as fs            from 'fs';
+import * as path          from 'path';
+import { spawnSync }      from 'child_process';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -77,7 +78,17 @@ export default class ExtentReporter implements Reporter {
     const html = buildHTML(this.records, this.runStart, runEnd, dur, passed, failed, skipped, total);
     const out  = path.join(this.outputDir, 'index.html');
     fs.writeFileSync(out, html, 'utf-8');
-    console.log(`\n📊  Extent Report → ${out}\n`);
+    console.log(`\n📊  Extent Report → ${out}`);
+
+    // ── Auto-generate PDF alongside the HTML report ───────────────────────────
+    const pdfScript = path.resolve(process.cwd(), 'scripts', 'generate-pdf.js');
+    if (fs.existsSync(pdfScript)) {
+      console.log(`📄  Generating PDF...`);
+      const result = spawnSync(process.execPath, [pdfScript, out], { stdio: 'inherit' });
+      if (result.status !== 0) {
+        console.warn('⚠️   PDF generation failed — HTML report is still available.');
+      }
+    }
   }
 }
 
@@ -204,6 +215,21 @@ function buildHTML(
   body{font-family:'Segoe UI',system-ui,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
   a{color:#3b82f6;text-decoration:none}
   table{border-collapse:collapse;width:100%}
+  @media print {
+    /* Ensure backgrounds (dark header, coloured badges) print correctly */
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    /* Expand every test card body so all screenshots appear in the PDF */
+    [id^="body-"]{display:block!important}
+    [id^="arr-"]{transform:rotate(180deg)!important}
+    /* Keep each test card together — avoid splitting across pages */
+    [id^="test-"]{page-break-inside:avoid;break-inside:avoid;margin-bottom:12px!important}
+    /* Remove click cursor on headers */
+    [onclick]{cursor:default!important}
+    /* Give each screenshot a page break hint if it is tall */
+    img{max-width:100%!important;page-break-inside:avoid;break-inside:avoid}
+    /* Tighten outer margins — A4 already has margin set in page.pdf() */
+    body{background:#f1f5f9!important}
+  }
 </style>
 </head>
 <body>

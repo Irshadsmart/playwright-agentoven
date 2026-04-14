@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "test": "playwright test --headed --project=chromium",
+    "pdf":  "node scripts/generate-pdf.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
