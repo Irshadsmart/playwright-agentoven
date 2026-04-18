@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "playwright test --headed --project=chromium",
-    "pdf":  "node scripts/generate-pdf.js"
+    "test":   "playwright test --headed --project=chromium",
+    "pdf":    "node scripts/generate-pdf.js",
+    "backup": "node scripts/export-to-excel.js"
   },
   "keywords": [],
   "author": "",
@@ -13,6 +14,7 @@
   "type": "commonjs",
   "devDependencies": {
     "@playwright/test": "^1.59.1",
-    "@types/node": "^25.6.0"
+    "@types/node": "^25.6.0",
+    "xlsx": "^0.18.5"
   }
 }
