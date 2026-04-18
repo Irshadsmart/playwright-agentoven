@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test":   "playwright test --headed --project=chromium",
-    "pdf":    "node scripts/generate-pdf.js",
-    "backup": "node scripts/export-to-excel.js"
+    "test":       "playwright test --headed --project=chromium",
+    "pdf":        "node scripts/generate-pdf.js",
+    "backup":     "node scripts/export-to-excel.js",
+    "walkthrough": "node scripts/walkthrough.js"
   },
   "keywords": [],
   "author": "",
