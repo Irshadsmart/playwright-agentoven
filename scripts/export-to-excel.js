@@ -412,18 +412,15 @@ function addSheet(wb, sheetName, rows) {
   addSheet(wb, 'Connectors',          connectors);
 
   // ── Save file ─────────────────────────────────────────────────────────────
-  const backupDir = path.join(__dirname, '..', 'backup');
-  fs.mkdirSync(backupDir, { recursive: true });
+  const dataDir = path.join(__dirname, '..', 'data');
+  fs.mkdirSync(dataDir, { recursive: true });
 
-  const now  = new Date();
-  const pad  = n => String(n).padStart(2, '0');
-  const name = `agentoven-data-backup_${pad(now.getDate())}-${pad(now.getMonth()+1)}-${now.getFullYear()}.xlsx`;
-  const out  = path.join(backupDir, name);
+  const out = path.join(dataDir, 'data.xlsx');
 
   XLSX.writeFile(wb, out);
 
-  console.log(`\n✅  Excel backup saved → ${out}`);
-  console.log(`    Sheets: 14 | File: ${name}\n`);
+  console.log(`\n✅  Excel saved → ${out}`);
+  console.log(`    Sheets: 14 | Open: data/data.xlsx\n`);
 })().catch(err => {
   console.error('\n❌  Export failed:', err.message);
   process.exit(1);
