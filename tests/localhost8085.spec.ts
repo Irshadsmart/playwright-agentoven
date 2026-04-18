@@ -39,49 +39,71 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
 
   // ── 02 ───────────────────────────────────────────────────────────────────────
   test('02 — Agents', async ({ page }, info) => {
-    test.setTimeout(TIMEOUT);
+    test.setTimeout(120_000); // Extended: 5 agents × Integrate walkthrough
     addEnv(info);
 
     await page.goto(`${BASE}/agents`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Agents', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Re-cook' })).toBeVisible();
+    // Confirm all 5 agent cards are present
+    await expect(page.getByRole('button', { name: 'Re-cook' })).toHaveCount(5);
     await page.waitForTimeout(STEP_PAUSE);
 
-    // ── Open Integrate modal ──────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Integrate' }).click();
-    await page.waitForTimeout(ACTION_PAUSE);
-    await expect(page.getByRole('heading', { name: /Integrate/i })).toBeVisible();
+    // Screenshot all 5 cards before interacting
+    const ssAll = await page.screenshot({ fullPage: true });
+    await info.attach('Agents — All 5 Cards', { body: ssAll, contentType: 'image/png' });
 
-    // Scope all tab interactions inside the modal overlay
-    const modal = page.locator('div.fixed.inset-0');
+    const agents = [
+      'My First Agent',
+      'task-planner',
+      'doc-researcher',
+      'summarizer',
+      'quality-reviewer',
+    ];
 
-    // ── Invoke tab (default) ──────────────────────────────────────────────────
-    await modal.getByRole('button', { name: 'Invoke' }).click();
-    await page.waitForTimeout(5000);
-    const ssInvoke = await page.screenshot({ fullPage: true });
-    await info.attach('Integrate — Invoke tab', { body: ssInvoke, contentType: 'image/png' });
+    for (let i = 0; i < agents.length; i++) {
+      const agentName = agents[i];
+      const modal     = page.locator('div.fixed.inset-0');
 
-    // ── Session tab ───────────────────────────────────────────────────────────
-    await modal.getByRole('button', { name: 'Session' }).click();
-    await page.waitForTimeout(5000);
-    const ssSession = await page.screenshot({ fullPage: true });
-    await info.attach('Integrate — Session tab', { body: ssSession, contentType: 'image/png' });
+      // Open Integrate modal for this agent
+      await page.getByRole('button', { name: 'Integrate' }).nth(i).click();
+      await page.waitForTimeout(ACTION_PAUSE);
+      await expect(page.getByRole('heading', { name: /Integrate/i })).toBeVisible();
 
-    // ── Test tab ──────────────────────────────────────────────────────────────
-    await modal.getByRole('button', { name: 'Test', exact: true }).click();
-    await page.waitForTimeout(5000);
-    const ssTest = await page.screenshot({ fullPage: true });
-    await info.attach('Integrate — Test tab', { body: ssTest, contentType: 'image/png' });
+      if (i === 0) {
+        // ── My First Agent: full 4-tab walkthrough ────────────────────────────
+        await modal.getByRole('button', { name: 'Invoke' }).click();
+        await page.waitForTimeout(3000);
+        await info.attach(`${agentName} — Invoke tab`,
+          { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
 
-    // ── Agent Card tab ────────────────────────────────────────────────────────
-    await modal.getByRole('button', { name: 'Agent Card' }).click();
-    await page.waitForTimeout(5000);
-    const ssAgentCard = await page.screenshot({ fullPage: true });
-    await info.attach('Integrate — Agent Card tab', { body: ssAgentCard, contentType: 'image/png' });
+        await modal.getByRole('button', { name: 'Session' }).click();
+        await page.waitForTimeout(3000);
+        await info.attach(`${agentName} — Session tab`,
+          { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
 
-    // ── Close modal ───────────────────────────────────────────────────────────
-    await page.keyboard.press('Escape');
-    await expect(page.locator('div.fixed.inset-0')).toHaveCount(0);
+        await modal.getByRole('button', { name: 'Test', exact: true }).click();
+        await page.waitForTimeout(3000);
+        await info.attach(`${agentName} — Test tab`,
+          { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+
+        await modal.getByRole('button', { name: 'Agent Card' }).click();
+        await page.waitForTimeout(3000);
+        await info.attach(`${agentName} — Agent Card tab`,
+          { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+      } else {
+        // ── Other agents: screenshot Invoke (default) tab ─────────────────────
+        await modal.getByRole('button', { name: 'Invoke' }).click();
+        await page.waitForTimeout(2000);
+        await info.attach(`${agentName} — Integrate`,
+          { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+      }
+
+      // Close modal before moving to next agent
+      await page.keyboard.press('Escape');
+      await expect(modal).toHaveCount(0);
+      await page.waitForTimeout(ACTION_PAUSE);
+    }
+
     await page.waitForTimeout(STEP_PAUSE);
   });
 
@@ -93,7 +115,8 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await page.goto(`${BASE}/agents`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(STEP_PAUSE);
 
-    await page.getByRole('button', { name: 'Re-cook' }).click();
+    // Use .first() — 5 agents means 5 Re-cook buttons; target My First Agent
+    await page.getByRole('button', { name: 'Re-cook' }).first().click();
     await page.waitForTimeout(ACTION_PAUSE);
     await page.getByRole('button', { name: '🔥 Re-cook Agent' }).click();
     await page.waitForTimeout(ACTION_PAUSE);
@@ -111,9 +134,10 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await page.goto(`${BASE}/agents`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(STEP_PAUSE);
 
-    await page.getByRole('button', { name: 'Cool' }).click();
+    // Use .first() — 5 agents means 5 Cool buttons; target My First Agent
+    await page.getByRole('button', { name: 'Cool' }).first().click();
     await page.waitForTimeout(ACTION_PAUSE);
-    await page.getByRole('button', { name: 'Rewarm' }).click();
+    await page.getByRole('button', { name: 'Rewarm' }).first().click();
     await page.waitForTimeout(STEP_PAUSE);
   });
 
@@ -192,6 +216,30 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
 
     await page.goto(`${BASE}/prompts`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Prompts', exact: true })).toBeVisible();
+    await page.waitForTimeout(STEP_PAUSE);
+
+    // Verify both prompt cards are present
+    await expect(page.getByText('qa-test-generator')).toBeVisible();
+    await expect(page.getByText('code-reviewer')).toBeVisible();
+
+    // Screenshot both cards
+    await info.attach('Prompts — Both Cards',
+      { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+
+    // ── qa-test-generator: open Edit form ─────────────────────────────────────
+    await page.getByRole('button', { name: 'Edit' }).first().click();
+    await page.waitForTimeout(ACTION_PAUSE);
+    await info.attach('qa-test-generator — Edit Form',
+      { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.waitForTimeout(ACTION_PAUSE);
+
+    // ── code-reviewer: open Edit form ─────────────────────────────────────────
+    await page.getByRole('button', { name: 'Edit' }).nth(1).click();
+    await page.waitForTimeout(ACTION_PAUSE);
+    await info.attach('code-reviewer — Edit Form',
+      { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    await page.getByRole('button', { name: 'Cancel' }).click();
     await page.waitForTimeout(STEP_PAUSE);
   });
 
