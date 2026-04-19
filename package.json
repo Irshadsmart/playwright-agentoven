@@ -8,7 +8,8 @@
     "pdf":        "node scripts/generate-pdf.js",
     "backup":     "node scripts/export-to-excel.js",
     "walkthrough":      "node scripts/walkthrough.js",
-    "register-tools":   "node scripts/register-tools.js"
+    "register-tools":   "node scripts/register-tools.js",
+    "create-inputs":    "node scripts/create-input-excel.js"
   },
   "keywords": [],
   "author": "",

@@ -1,10 +1,5 @@
 import { test, expect, TestInfo } from '@playwright/test';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-const BASE         = 'http://localhost:8085';
-const STEP_PAUSE   = 3000;   // pause after reaching a page / completing a section
-const ACTION_PAUSE = 1500;   // pause between in-page interactions
-const TIMEOUT      = 90_000; // per-test timeout (slowMo + waits)
+import { INPUTS, BASE, STEP_PAUSE, ACTION_PAUSE, TIMEOUT, AGENTS_TIMEOUT } from './input-reader';
 
 // ── Environment annotations ───────────────────────────────────────────────────
 // Added to every test — appear as the Annotations block in the Extent report
@@ -13,7 +8,7 @@ function addEnv(info: TestInfo) {
   info.annotations.push({ type: 'Browser',        description: 'Chromium — Desktop Chrome (Playwright built-in)' });
   info.annotations.push({ type: 'Execution Mode', description: 'Headed — 800 ms/action slowMo + 3 s pause per section' });
   info.annotations.push({ type: 'Test Timeout',   description: '90 seconds per test' });
-  info.annotations.push({ type: 'App Under Test', description: 'AgentOven — http://localhost:8085' });
+  info.annotations.push({ type: 'App Under Test', description: `AgentOven — ${BASE}` });
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
@@ -38,39 +33,34 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
   });
 
   // ── 02 ───────────────────────────────────────────────────────────────────────
+  // Agents list driven by input/input.xlsx → Agents sheet
+  // "Full Integrate = true" → 4-tab walkthrough; false → Invoke only
   test('02 — Agents', async ({ page }, info) => {
-    test.setTimeout(120_000); // Extended: 5 agents × Integrate walkthrough
+    test.setTimeout(AGENTS_TIMEOUT);
     addEnv(info);
 
     await page.goto(`${BASE}/agents`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Agents', exact: true })).toBeVisible();
-    // Confirm all 5 agent cards are present
-    await expect(page.getByRole('button', { name: 'Re-cook' })).toHaveCount(5);
+
+    // Confirm the expected number of agent cards matches the input sheet
+    await expect(page.getByRole('button', { name: 'Re-cook' })).toHaveCount(INPUTS.agents.length);
     await page.waitForTimeout(STEP_PAUSE);
 
-    // Screenshot all 5 cards before interacting
+    // Screenshot all cards before interacting
     const ssAll = await page.screenshot({ fullPage: true });
-    await info.attach('Agents — All 5 Cards', { body: ssAll, contentType: 'image/png' });
+    await info.attach('Agents — All Cards', { body: ssAll, contentType: 'image/png' });
 
-    const agents = [
-      'My First Agent',
-      'task-planner',
-      'doc-researcher',
-      'summarizer',
-      'quality-reviewer',
-    ];
-
-    for (let i = 0; i < agents.length; i++) {
-      const agentName = agents[i];
-      const modal     = page.locator('div.fixed.inset-0');
+    for (let i = 0; i < INPUTS.agents.length; i++) {
+      const { name: agentName, fullIntegrate } = INPUTS.agents[i];
+      const modal = page.locator('div.fixed.inset-0');
 
       // Open Integrate modal for this agent
       await page.getByRole('button', { name: 'Integrate' }).nth(i).click();
       await page.waitForTimeout(ACTION_PAUSE);
       await expect(page.getByRole('heading', { name: /Integrate/i })).toBeVisible();
 
-      if (i === 0) {
-        // ── My First Agent: full 4-tab walkthrough ────────────────────────────
+      if (fullIntegrate) {
+        // ── Full 4-tab walkthrough ─────────────────────────────────────────────
         await modal.getByRole('button', { name: 'Invoke' }).click();
         await page.waitForTimeout(3000);
         await info.attach(`${agentName} — Invoke tab`,
@@ -91,7 +81,7 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
         await info.attach(`${agentName} — Agent Card tab`,
           { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
       } else {
-        // ── Other agents: screenshot Invoke (default) tab ─────────────────────
+        // ── Invoke tab only ────────────────────────────────────────────────────
         await modal.getByRole('button', { name: 'Invoke' }).click();
         await page.waitForTimeout(2000);
         await info.attach(`${agentName} — Integrate`,
@@ -115,12 +105,11 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await page.goto(`${BASE}/agents`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(STEP_PAUSE);
 
-    // Use .first() — 5 agents means 5 Re-cook buttons; target My First Agent
+    // Target first agent (My First Agent) — driven by Agents sheet order
     await page.getByRole('button', { name: 'Re-cook' }).first().click();
     await page.waitForTimeout(ACTION_PAUSE);
     await page.getByRole('button', { name: '🔥 Re-cook Agent' }).click();
     await page.waitForTimeout(ACTION_PAUSE);
-    // Dismiss modal that stays open after re-cook attempt
     await page.keyboard.press('Escape');
     await expect(page.locator('div.fixed.inset-0')).toHaveCount(0);
     await page.waitForTimeout(STEP_PAUSE);
@@ -134,7 +123,6 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await page.goto(`${BASE}/agents`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(STEP_PAUSE);
 
-    // Use .first() — 5 agents means 5 Cool buttons; target My First Agent
     await page.getByRole('button', { name: 'Cool' }).first().click();
     await page.waitForTimeout(ACTION_PAUSE);
     await page.getByRole('button', { name: 'Rewarm' }).first().click();
@@ -153,21 +141,24 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
   });
 
   // ── 06 ───────────────────────────────────────────────────────────────────────
+  // Recipe name + description driven by input/input.xlsx → Recipes sheet
   test('06 — Create Recipe', async ({ page }, info) => {
     test.setTimeout(TIMEOUT);
     addEnv(info);
+
+    const recipe = INPUTS.recipes[0];   // first recipe row from Excel
 
     await page.goto(`${BASE}/recipes`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(STEP_PAUSE);
 
     await page.getByRole('button', { name: 'Create Recipe' }).click();
     await page.waitForTimeout(ACTION_PAUSE);
-    await page.getByRole('textbox', { name: 'my-workflow' }).fill('My First Recipe');
+    await page.getByRole('textbox', { name: 'my-workflow' }).fill(recipe.name);
     await page.waitForTimeout(ACTION_PAUSE);
-    await page.getByRole('textbox', { name: 'A workflow that...' }).fill('My First Recipe description');
+    await page.getByRole('textbox', { name: 'A workflow that...' }).fill(recipe.description);
     await page.waitForTimeout(ACTION_PAUSE);
     await page.getByRole('button', { name: 'Create', exact: true }).click();
-    await expect(page.getByText('My First Recipe', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(recipe.name, { exact: true }).first()).toBeVisible();
     await page.waitForTimeout(STEP_PAUSE);
   });
 
@@ -176,8 +167,10 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     test.setTimeout(TIMEOUT);
     addEnv(info);
 
+    const recipe = INPUTS.recipes[0];
+
     await page.goto(`${BASE}/recipes`, { waitUntil: 'networkidle' });
-    await expect(page.getByText('My First Recipe', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(recipe.name, { exact: true }).first()).toBeVisible();
     await page.waitForTimeout(STEP_PAUSE);
 
     await page.getByRole('button', { name: 'Run' }).first().click();
@@ -200,16 +193,19 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     test.setTimeout(TIMEOUT);
     addEnv(info);
 
+    const recipe = INPUTS.recipes[0];
+
     await page.goto(`${BASE}/dishshelf`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(STEP_PAUSE);
 
     await page.getByRole('link', { name: 'Recipes' }).click();
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText('My First Recipe', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(recipe.name, { exact: true }).first()).toBeVisible();
     await page.waitForTimeout(STEP_PAUSE);
   });
 
   // ── 10 ───────────────────────────────────────────────────────────────────────
+  // Prompts to verify + edit driven by input/input.xlsx → Prompts sheet
   test('10 — Prompts', async ({ page }, info) => {
     test.setTimeout(TIMEOUT);
     addEnv(info);
@@ -218,32 +214,33 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await expect(page.getByRole('heading', { name: 'Prompts', exact: true })).toBeVisible();
     await page.waitForTimeout(STEP_PAUSE);
 
-    // Verify both prompt cards are present
-    await expect(page.getByText('qa-test-generator')).toBeVisible();
-    await expect(page.getByText('code-reviewer')).toBeVisible();
+    // Verify every prompt in the sheet is visible
+    for (const prompt of INPUTS.prompts) {
+      await expect(page.getByText(prompt.name)).toBeVisible();
+    }
 
     // Screenshot both cards
-    await info.attach('Prompts — Both Cards',
+    await info.attach('Prompts — All Cards',
       { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
 
-    // ── qa-test-generator: open Edit form ─────────────────────────────────────
-    await page.getByRole('button', { name: 'Edit' }).first().click();
-    await page.waitForTimeout(ACTION_PAUSE);
-    await info.attach('qa-test-generator — Edit Form',
-      { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
-    await page.getByRole('button', { name: 'Cancel' }).click();
-    await page.waitForTimeout(ACTION_PAUSE);
+    // Open Edit form for each prompt that has openEdit = true
+    let editIndex = 0;
+    for (const prompt of INPUTS.prompts) {
+      if (!prompt.openEdit) continue;
+      await page.getByRole('button', { name: 'Edit' }).nth(editIndex).click();
+      await page.waitForTimeout(ACTION_PAUSE);
+      await info.attach(`${prompt.name} — Edit Form`,
+        { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await page.waitForTimeout(ACTION_PAUSE);
+      editIndex++;
+    }
 
-    // ── code-reviewer: open Edit form ─────────────────────────────────────────
-    await page.getByRole('button', { name: 'Edit' }).nth(1).click();
-    await page.waitForTimeout(ACTION_PAUSE);
-    await info.attach('code-reviewer — Edit Form',
-      { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
-    await page.getByRole('button', { name: 'Cancel' }).click();
     await page.waitForTimeout(STEP_PAUSE);
   });
 
   // ── 11 ───────────────────────────────────────────────────────────────────────
+  // Providers driven by input/input.xlsx → Providers sheet
   test('11 — Providers', async ({ page }, info) => {
     test.setTimeout(TIMEOUT);
     addEnv(info);
@@ -252,14 +249,19 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await expect(page.getByRole('heading', { name: 'Model Providers', exact: true })).toBeVisible();
     await page.waitForTimeout(STEP_PAUSE);
 
-    await page.getByText('My Anthropic').click();
-    await page.waitForTimeout(ACTION_PAUSE);
-    await page.getByText('My OpenAI').click();
-    await page.waitForTimeout(ACTION_PAUSE);
+    // Click each provider to expand it
+    for (const provider of INPUTS.providers) {
+      await page.getByText(provider.name).click();
+      await page.waitForTimeout(ACTION_PAUSE);
+    }
 
-    await page.getByRole('button', { name: 'Test' }).nth(1).click();
-    await page.waitForTimeout(ACTION_PAUSE);
-    await page.getByRole('button', { name: 'Test' }).first().click();
+    // Test connections for providers where testConnection = true
+    // Test in reverse order (nth from end) to match existing behaviour
+    const testableProviders = INPUTS.providers.filter(p => p.testConnection);
+    for (let i = testableProviders.length - 1; i >= 0; i--) {
+      await page.getByRole('button', { name: 'Test' }).nth(i).click();
+      await page.waitForTimeout(ACTION_PAUSE);
+    }
     await page.waitForTimeout(STEP_PAUSE);
   });
 
@@ -274,6 +276,7 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
   });
 
   // ── 13 ───────────────────────────────────────────────────────────────────────
+  // Tool names driven by input/input.xlsx → Tools sheet (conditional on server running)
   test('13 — Tools', async ({ page }, info) => {
     test.setTimeout(TIMEOUT);
     addEnv(info);
@@ -282,31 +285,22 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await expect(page.getByRole('heading', { name: 'MCP Tools', exact: true })).toBeVisible();
     await page.waitForTimeout(STEP_PAUSE);
 
-    // ── Check registered tools (conditional — depends on which MCP servers are running) ──
-    const googleRow = page.getByRole('row').filter({ hasText: 'Google Search' });
-    const weatherRow = page.getByRole('row').filter({ hasText: 'Weather' });
-
-    const googleVisible = await googleRow.isVisible();
-    const weatherVisible = await weatherRow.isVisible();
-
-    if (googleVisible) {
-      await expect(googleRow.getByText('http', { exact: true })).toBeVisible();
-      await expect(googleRow.getByText('tool', { exact: true })).toBeVisible();
-    }
-    if (weatherVisible) {
-      await expect(weatherRow.getByText('http', { exact: true })).toBeVisible();
-      await expect(weatherRow.getByText('tool', { exact: true })).toBeVisible();
+    // Check each tool from the Excel sheet (conditional — depends on which MCP servers are running)
+    const visibleTools: string[] = [];
+    for (const tool of INPUTS.tools) {
+      const row     = page.getByRole('row').filter({ hasText: tool.name });
+      const visible = await row.isVisible();
+      if (visible) {
+        visibleTools.push(tool.name);
+        await expect(row.getByText(tool.transport, { exact: true })).toBeVisible();
+        await expect(row.getByText('tool', { exact: true })).toBeVisible();
+      }
     }
     await page.waitForTimeout(ACTION_PAUSE);
 
-    // ── Capture full-page screenshot and attach to report ─────────────────────
     const screenshot = await page.screenshot({ fullPage: true });
-    const toolsLabel = [googleVisible && 'Google Search', weatherVisible && 'Weather']
-      .filter(Boolean).join(' & ') || 'MCP Tools page';
-    await info.attach(`MCP Tools — ${toolsLabel}`, {
-      body        : screenshot,
-      contentType : 'image/png',
-    });
+    const label      = visibleTools.length ? `MCP Tools — ${visibleTools.join(' & ')}` : 'MCP Tools page';
+    await info.attach(label, { body: screenshot, contentType: 'image/png' });
     await page.waitForTimeout(STEP_PAUSE);
   });
 
@@ -341,9 +335,12 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
   });
 
   // ── 17 ───────────────────────────────────────────────────────────────────────
+  // RAG ingest content + expected success message driven by input/input.xlsx → RAG_Pipelines sheet
   test('17 — RAG Pipelines: Ingest', async ({ page }, info) => {
     test.setTimeout(TIMEOUT);
     addEnv(info);
+
+    const ragInput = INPUTS.rag[0];   // first RAG row from Excel
 
     await page.goto(`${BASE}/rag`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'RAG Pipelines', exact: true })).toBeVisible();
@@ -353,26 +350,21 @@ test.describe.serial('AgentOven UI — End-to-End Flow', () => {
     await page.getByRole('button', { name: 'ingest' }).click();
     await page.waitForTimeout(ACTION_PAUSE);
 
-    // Paste BDD scenario into Document Content
-    const ragContent = [
-      'Scenario: Query using naive strategy',
-      '  Given documents are ingested',
-      '  When user asks "What is AgentOven?"',
-      '  And strategy is "naive"',
-      '  Then system should return accurate answer',
-    ].join('\n');
-    await page.getByRole('textbox', { name: 'Paste text content to ingest into the vector store...' }).fill(ragContent);
+    // Paste document content from Excel
+    await page.getByRole('textbox', { name: 'Paste text content to ingest into the vector store...' })
+      .fill(ragInput.content);
     await page.waitForTimeout(ACTION_PAUSE);
 
     // Trigger ingest
     await page.getByRole('button', { name: 'Ingest Document' }).click();
 
-    // Wait for ingestion cycle to complete (button resets to "Ingest Document")
+    // Wait for button to reset
     await expect(page.getByRole('button', { name: 'Ingest Document' })).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(ACTION_PAUSE);
 
-    // Assert green success message
-    const successMsg = page.locator('div.text-green-400').filter({ hasText: 'Ingested 1 doc(s), 1 chunk(s), 1 vector(s)' });
+    // Assert success message from Excel
+    const successMsg = page.locator('div.text-green-400')
+      .filter({ hasText: ragInput.successMessage });
     await expect(successMsg).toBeVisible({ timeout: 15000 });
     await page.waitForTimeout(STEP_PAUSE);
   });
