@@ -308,15 +308,8 @@ async function main() {
 
   console.log('\n  All narration audio generated.\n');
 
-  // ── Phase 2: Start screen recording ──────────────────────────────────────────
-  console.log('🎥  Starting full-screen recording...');
-  const ffmpegProc      = startRecording(TEMP_VIDEO, FFMPEG);
-  const recordingStart  = Date.now();
-  await new Promise(r => setTimeout(r, 2500)); // warm-up
-  console.log('  Recording started.\n');
-
-  // ── Phase 3: Playwright walkthrough ──────────────────────────────────────────
-  console.log('🌐  Launching Chrome...\n');
+  // ── Phase 2: Open Chrome FIRST so AgentOven fills the screen before recording ──
+  console.log('🌐  Launching Chrome and navigating to AgentOven...');
 
   const browser = await chromium.launch({
     headless: false,
@@ -326,8 +319,23 @@ async function main() {
   const context = await browser.newContext({ viewport: null });
   const page    = await context.newPage();
 
-  // 3-second intro buffer — show home page
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+
+  // Wait for Chrome to be maximised and fully covering the screen.
+  // This ensures VS Code (or any other window) is hidden before recording begins.
+  await page.waitForTimeout(3000);
+
+  // ── Phase 3: Start recording — Chrome is already on-screen ───────────────────
+  console.log('🎥  Starting full-screen recording (AgentOven is now on screen)...');
+  const ffmpegProc     = startRecording(TEMP_VIDEO, FFMPEG);
+  const recordingStart = Date.now();
+  await new Promise(r => setTimeout(r, 2500)); // warm-up — first frames capture AgentOven home
+  console.log('  Recording started.\n');
+
+  // ── Phase 4: Playwright walkthrough ──────────────────────────────────────────
+  console.log('🚀  Running AgentOven walkthrough...\n');
+
+  // 3-second intro buffer on home page (already loaded)
   await page.waitForTimeout(3000);
 
   for (const s of sections) {
@@ -342,28 +350,31 @@ async function main() {
     // Section-specific interactions
     await runSection(page, s.id);
 
-    // Show page for NAV_PAUSE seconds
+    // Show page for NAV_PAUSE seconds before narration
     await page.waitForTimeout(NAV_PAUSE);
 
     // ── Mark the exact narration start offset in the video timeline ────────────
     s.audioOffsetMs = Date.now() - recordingStart;
     console.log(`      📢  narration at ${(s.audioOffsetMs / 1000).toFixed(1)} s`);
 
-    // Wait for narration audio duration (keeps screen visible during narration)
+    // Wait for narration audio duration (screen stays on AgentOven during narration)
     await page.waitForTimeout(s.durationMs);
 
     // Post-narration pause
     await page.waitForTimeout(AFTER_PAUSE);
   }
 
-  // 5-second outro
+  // 5-second outro — stay on last AgentOven page (Connectors)
   await page.waitForTimeout(5000);
-  await browser.close();
 
-  // ── Phase 4: Stop recording ───────────────────────────────────────────────────
-  console.log('\n⏹  Stopping screen recording...');
+  // ── Phase 5: Stop recording BEFORE closing Chrome ────────────────────────────
+  // This ensures the video ends on AgentOven UI, not on VS Code or the desktop.
+  console.log('\n⏹  Stopping screen recording (AgentOven still on screen)...');
   await stopRecording(ffmpegProc);
-  await new Promise(r => setTimeout(r, 4000)); // let ffmpeg finalise
+  await new Promise(r => setTimeout(r, 4000)); // let ffmpeg finalise the file
+
+  // Now safe to close Chrome
+  await browser.close();
 
   if (!fs.existsSync(TEMP_VIDEO)) {
     throw new Error('Screen recording not found — ffmpeg may have failed to capture the screen.');
