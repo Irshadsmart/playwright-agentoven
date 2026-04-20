@@ -6,11 +6,12 @@
  * What it does (zero manual steps):
  *   1. Installs/locates ffmpeg (uses bundled ffmpeg-static npm package)
  *   2. Generates TTS narration audio for every section via Windows Speech
- *   3. Starts full-screen recording with ffmpeg gdigrab
- *   4. Opens Chrome (headed) and walks through every AgentOven section
- *   5. Stops recording, builds a time-synced narration audio track
- *   6. Merges video + audio → final MP4
- *   7. Saves to reports/AgentOven_Demo_Video.mp4
+ *   3. Opens Chrome with Playwright recordVideo (captures browser page ONLY)
+ *   4. Walks through every AgentOven section interactively
+ *   5. Closes context → finalises .webm → converts to mp4
+ *   6. Builds a time-synced narration audio track with ffmpeg adelay/amix
+ *   7. Merges video + audio → final MP4
+ *   8. Saves to reports/AgentOven_Demo_Video.mp4
  *
  * Usage:  node scripts/record-demo.js
  * ─────────────────────────────────────────────────────────────────────────────
@@ -159,25 +160,17 @@ function getDurationMs(filePath, ffprobePath) {
   return Math.round(d * 1000);
 }
 
-// ── Screen recording ──────────────────────────────────────────────────────────
-function startRecording(outputPath, ffmpegPath) {
-  const proc = spawn(ffmpegPath, [
-    '-y', '-f', 'gdigrab', '-framerate', '30', '-i', 'desktop',
-    '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p',
-    outputPath,
-  ], { stdio: ['pipe', 'ignore', 'ignore'] });
-
-  proc.on('error', err => console.error('[ffmpeg error]', err.message));
-  return proc;
-}
-
-function stopRecording(proc) {
-  return new Promise(resolve => {
-    if (!proc || proc.exitCode !== null) { resolve(); return; }
-    proc.on('close', resolve);
-    try { proc.stdin.write('q'); proc.stdin.end(); } catch {}
-    setTimeout(() => { try { proc.kill(); } catch {} resolve(); }, 20000);
-  });
+// ── Convert webm → mp4 (Playwright records webm, we need mp4) ────────────────
+function convertToMp4(webmPath, mp4Path, ffmpegPath) {
+  const r = spawnSync(ffmpegPath, [
+    '-y', '-i', webmPath,
+    '-c:v', 'libx264', '-preset', 'fast', '-crf', '22',
+    '-pix_fmt', 'yuv420p',
+    mp4Path,
+  ], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
+  if (!fs.existsSync(mp4Path)) {
+    throw new Error(`webm→mp4 conversion failed:\n${r.stderr?.slice(0, 400)}`);
+  }
 }
 
 // ── Browser step banner ───────────────────────────────────────────────────────
@@ -308,29 +301,24 @@ async function main() {
 
   console.log('\n  All narration audio generated.\n');
 
-  // ── Phase 2: Open Chrome FIRST so AgentOven fills the screen before recording ──
-  console.log('🌐  Launching Chrome and navigating to AgentOven...');
+  // ── Phase 2: Launch Chrome with Playwright recordVideo ───────────────────────
+  // recordVideo captures only the browser page content — nothing else on screen.
+  console.log('🌐  Launching Chrome with Playwright video recording...');
 
   const browser = await chromium.launch({
     headless: false,
     slowMo: 700,
     args: ['--start-maximized'],
   });
-  const context = await browser.newContext({ viewport: null });
-  const page    = await context.newPage();
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    recordVideo: { dir: TEMP_DIR, size: { width: 1280, height: 800 } },
+  });
+  const page           = await context.newPage();
+  const recordingStart = Date.now();   // video starts from the moment the page exists
 
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-
-  // Wait for Chrome to be maximised and fully covering the screen.
-  // This ensures VS Code (or any other window) is hidden before recording begins.
-  await page.waitForTimeout(3000);
-
-  // ── Phase 3: Start recording — Chrome is already on-screen ───────────────────
-  console.log('🎥  Starting full-screen recording (AgentOven is now on screen)...');
-  const ffmpegProc     = startRecording(TEMP_VIDEO, FFMPEG);
-  const recordingStart = Date.now();
-  await new Promise(r => setTimeout(r, 2500)); // warm-up — first frames capture AgentOven home
-  console.log('  Recording started.\n');
+  console.log('  Browser recording started (captures AgentOven UI only).\n');
 
   // ── Phase 4: Playwright walkthrough ──────────────────────────────────────────
   console.log('🚀  Running AgentOven walkthrough...\n');
@@ -367,17 +355,22 @@ async function main() {
   // 5-second outro — stay on last AgentOven page (Connectors)
   await page.waitForTimeout(5000);
 
-  // ── Phase 5: Stop recording BEFORE closing Chrome ────────────────────────────
-  // This ensures the video ends on AgentOven UI, not on VS Code or the desktop.
-  console.log('\n⏹  Stopping screen recording (AgentOven still on screen)...');
-  await stopRecording(ffmpegProc);
-  await new Promise(r => setTimeout(r, 4000)); // let ffmpeg finalise the file
+  // ── Phase 5: Stop recording by closing the context (finalises the .webm) ──────
+  console.log('\n⏹  Stopping Playwright recording...');
 
-  // Now safe to close Chrome
+  // Grab the path before closing (it resolves immediately to the pending file path)
+  const webmPath = await page.video().path();
+
+  // Closing the context finalises and flushes the .webm to disk
+  await context.close();
   await browser.close();
 
+  // Convert webm → mp4 (Playwright always records webm / VP8)
+  console.log('  Converting webm → mp4...');
+  convertToMp4(webmPath, TEMP_VIDEO, FFMPEG);
+
   if (!fs.existsSync(TEMP_VIDEO)) {
-    throw new Error('Screen recording not found — ffmpeg may have failed to capture the screen.');
+    throw new Error('webm→mp4 conversion produced no output file.');
   }
   const videoMB = (fs.statSync(TEMP_VIDEO).size / 1024 / 1024).toFixed(1);
   const videoDurationMs = getDurationMs(TEMP_VIDEO, FFPROBE);
