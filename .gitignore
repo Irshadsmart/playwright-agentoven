@@ -10,4 +10,7 @@ node_modules/
 # Generated HTML reports (large, not needed in source control)
 /reports/
 
-# Keep backup/ Excel files tracked in git (that's the whole point)
+# AgentOven Docker backups — keep locally (can be large), don't push to GitHub
+/backup/
+
+# data/data.xlsx is pushed (Excel backup from export-to-excel.js)

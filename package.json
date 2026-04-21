@@ -10,7 +10,9 @@
     "walkthrough": "node scripts/walkthrough.js",
     "register-tools": "node scripts/register-tools.js",
     "create-inputs": "node scripts/create-input-excel.js",
-    "demo":          "node scripts/record-demo.js"
+    "demo":          "node scripts/record-demo.js",
+    "backup-app":    "node scripts/backup-agentoven.js",
+    "restore-app":   "node scripts/restore-agentoven.js"
   },
   "keywords": [],
   "author": "",
