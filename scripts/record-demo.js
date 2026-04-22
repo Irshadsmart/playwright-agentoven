@@ -48,6 +48,22 @@ const SECTIONS = [
     narration: 'Here is the Agents section. Each agent card shows the agent name, model, and description. We can integrate agents, and perform actions like Cool and Rewarm to manage agent state.',
   },
   {
+    id: 'agent_test_quality', label: 'Agent Test: quality-reviewer', url: '/agents/quality-reviewer/test',
+    narration: 'Here we are testing the quality-reviewer agent in Simple mode. We paste a technical paragraph with grammar errors and click Send. The agent reviews the text and returns a corrected version with improvement suggestions.',
+  },
+  {
+    id: 'agent_test_planner', label: 'Agent Test: task-planner', url: '/agents/task-planner/test',
+    narration: 'Now testing the task-planner agent. We send a software requirement — implementing a password reset feature with OTP. The agent generates a structured functional test plan covering all edge cases.',
+  },
+  {
+    id: 'agent_test_researcher', label: 'Agent Test: doc-researcher', url: '/agents/doc-researcher/test',
+    narration: 'The doc-researcher agent receives source material about two server models — Alpha and Beta. It analyses the documents and produces a detailed comparison table and recommendation.',
+  },
+  {
+    id: 'agent_test_summarizer', label: 'Agent Test: summarizer', url: '/agents/summarizer/test',
+    narration: 'Finally the summarizer agent. We provide four project update outputs from different team members. The agent condenses everything into a single clear summary paragraph.',
+  },
+  {
     id: 'recipes', label: 'Recipes — Create', url: '/recipes',
     narration: 'This is the Recipes section. We are now creating a new recipe called Demo Recipe. Recipes define the workflow that agents follow to complete tasks.',
   },
@@ -196,6 +212,34 @@ async function banner(page, label) {
   }, label);
 }
 
+// ── Agent test page helper (click Simple, fill, send, wait for response) ──────
+async function runAgentTestSection(page, input) {
+  try {
+    const simpleBtn = page.getByRole('button', { name: 'Simple' });
+    if (await simpleBtn.isVisible().catch(() => false)) {
+      await simpleBtn.click();
+      await page.waitForTimeout(ACTION_PAUSE);
+    }
+    const textarea = page.getByPlaceholder('Type a message... (Enter to send)');
+    await textarea.waitFor({ timeout: 10000 });
+    await textarea.fill(input);
+    await page.waitForTimeout(600);
+    await textarea.press('Enter');
+    await page.waitForTimeout(ACTION_PAUSE);
+    // Poll main innerText length until stable for 2 consecutive 2-second intervals
+    let prevLen = 0, stableCount = 0;
+    for (let i = 0; i < 45; i++) {
+      await page.waitForTimeout(2000);
+      const len = await page.evaluate(() => document.querySelector('main')?.innerText.length ?? 0);
+      if (len > prevLen) { prevLen = len; stableCount = 0; }
+      else if (prevLen > 0) { stableCount++; if (stableCount >= 2) break; }
+    }
+    await page.waitForTimeout(2000);
+  } catch (e) {
+    console.log(`    ⚠  agent test: ${e.message.slice(0, 80)}`);
+  }
+}
+
 // ── Section-specific Playwright interactions ──────────────────────────────────
 async function runSection(page, id) {
   const modal = page.locator('div.fixed.inset-0');
@@ -219,6 +263,39 @@ async function runSection(page, id) {
       await page.getByRole('button', { name: 'Rewarm' }).first().click();
       await page.waitForTimeout(ACTION_PAUSE);
     } catch {}
+  }
+
+  else if (id === 'agent_test_quality') {
+    await runAgentTestSection(page,
+      'Please review the following technical paragraph for a user manual:\n\n' +
+      '"To starting the machine, you must pushed the red button and than wait for 5 minutes. ' +
+      'The engine will began to rotate and the green light will blinking. ' +
+      'If the light stay red, you must to calling the technician immediately."');
+  }
+
+  else if (id === 'agent_test_planner') {
+    await runAgentTestSection(page,
+      'Requirement for Analysis: "Implement a \'Password Reset\' feature where a user enters ' +
+      'their email, receives a 6-digit numeric OTP valid for 10 minutes, and then sets a new ' +
+      'password that must be at least 8 characters with one special character."');
+  }
+
+  else if (id === 'agent_test_researcher') {
+    await runAgentTestSection(page,
+      'Research Request:\n\nUse the following reference material to compare the "Alpha" and "Beta" server models.\n\n' +
+      '[Source 1] TechSpecs Annual Report: "The Alpha Model features a liquid-cooling system and supports up to 128GB of RAM. Released in 2024."\n\n' +
+      '[Source 2] Internal Infrastructure Wiki: "The Beta Model utilizes traditional air-cooling. It supports 256GB of RAM but requires a dedicated 240V outlet. Release date: Late 2025."\n\n' +
+      'Task: Create a comparison table of these two models and summarize which is better for a low-power office environment.');
+  }
+
+  else if (id === 'agent_test_summarizer') {
+    await runAgentTestSection(page,
+      'Context/Previous Outputs:\n\n' +
+      '1. The developer completed the integration of the payment gateway using Stripe API.\n\n' +
+      '2. The QA team identified three high-priority bugs in the checkout flow.\n\n' +
+      '3. The UI designer updated the mobile navigation menu for better accessibility.\n\n' +
+      '4. The project manager confirmed the release date is set for Friday at 5:00 PM.\n\n' +
+      'Task: Please provide the summary of the work done based on the outputs above.');
   }
 
   else if (id === 'recipes') {
