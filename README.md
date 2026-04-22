@@ -1,6 +1,13 @@
 # AgentOven Automation Suite
 
-End-to-end Playwright automation for the **AgentOven** AI platform — 18 serial test cases covering every UI section, with a custom HTML/PDF Extent report, automated demo video recorder, Excel data backup, and GitHub Actions CI with pass/fail email notifications.
+End-to-end Playwright automation for the **AgentOven** AI platform — **22 test cases** covering every UI section plus live agent AI response testing, with a custom HTML/PDF Extent report, automated demo video recorder, Excel data backup, and GitHub Actions CI with pass/fail email notifications.
+
+## Branches
+
+| Branch | Tests | Purpose |
+|---|---|---|
+| `main` | 18 tests | Full UI end-to-end flow (Overview → Connectors) |
+| `feature/agent-test-runner` | **22 tests** | UI flow (18) + live agent AI test runner (4) |
 
 ---
 
@@ -12,18 +19,19 @@ End-to-end Playwright automation for the **AgentOven** AI platform — 18 serial
 4. [Prerequisites](#4-prerequisites)
 5. [First-Time Setup](#5-first-time-setup)
 6. [Input File — input/input.xlsx](#6-input-file--inputinputxlsx)
-7. [Running the Tests](#7-running-the-tests)
-8. [Running via Batch File (Daily Automation)](#8-running-via-batch-file-daily-automation)
-9. [Reports — Where They Are Stored](#9-reports--where-they-are-stored)
-10. [Generating a PDF Report](#10-generating-a-pdf-report)
-11. [Exporting AgentOven Data to Excel (Backup)](#11-exporting-agentoven-data-to-excel-backup)
-12. [Demo Video Recorder](#12-demo-video-recorder)
-13. [OBS Walkthrough Script](#13-obs-walkthrough-script)
-14. [MCP Tool Servers](#14-mcp-tool-servers)
-15. [Registering MCP Tools in AgentOven](#15-registering-mcp-tools-in-agentoven)
-16. [GitHub Actions CI/CD](#16-github-actions-cicd)
-17. [Restoring on a New Machine](#17-restoring-on-a-new-machine)
-18. [All Commands — Quick Reference](#18-all-commands--quick-reference)
+7. [Agent Test Runner — Agents/Agents.xlsx](#7-agent-test-runner--agentsagentsxlsx)
+8. [Running the Tests](#8-running-the-tests)
+9. [Running via Batch File (Daily Automation)](#9-running-via-batch-file-daily-automation)
+10. [Reports — Where They Are Stored](#10-reports--where-they-are-stored)
+11. [Generating a PDF Report](#11-generating-a-pdf-report)
+12. [Exporting AgentOven Data to Excel (Backup)](#12-exporting-agentoven-data-to-excel-backup)
+13. [Demo Video Recorder](#13-demo-video-recorder)
+14. [OBS Walkthrough Script](#14-obs-walkthrough-script)
+15. [MCP Tool Servers](#15-mcp-tool-servers)
+16. [Registering MCP Tools in AgentOven](#16-registering-mcp-tools-in-agentoven)
+17. [GitHub Actions CI/CD](#17-github-actions-cicd)
+18. [Restoring on a New Machine](#18-restoring-on-a-new-machine)
+19. [All Commands — Quick Reference](#19-all-commands--quick-reference)
 
 ---
 
@@ -320,19 +328,79 @@ This recreates all 7 sheets with default sample data.
 
 ---
 
-## 7. Running the Tests
+## 7. Agent Test Runner — `Agents/Agents.xlsx`
 
-### Run all 18 tests (headed Chromium — standard command)
+Available on branch `feature/agent-test-runner`. Sends live AI prompts to each agent via its dedicated Test page and captures the AI responses.
+
+### How it works
+
+1. Reads `Agents/Agents.xlsx` — one sheet per agent
+2. For each agent, navigates to `http://localhost:8085/agents/{agent-name}/test`
+3. Confirms the agent is in **ready** state
+4. Selects **Simple** mode
+5. Pastes the input text from Column B of the Input row
+6. Presses **Enter** (send button)
+7. Waits for the AI response to stream and stabilise
+8. Captures a **before** and **after** screenshot (both embedded in the Extent report)
+9. After all 4 agents complete, writes `Agents/Agents_Output_DD-MM-YYYY_HH.MM.xlsx`
+
+### Agents/Agents.xlsx — Input file structure
+
+One sheet per agent. Each sheet has the same two-row format:
+
+| Column A | Column B |
+|---|---|
+| `Input` | The prompt text to send to the agent |
+| *(empty)* | *(empty)* |
+| `Output` | Sample/reference output (for human reference only — not used by tests) |
+
+**Sheets:** `quality-reviewer`, `task-planner`, `doc-researcher`, `summarizer`
+
+To change what is sent to an agent: open `Agents/Agents.xlsx`, go to the relevant sheet, and edit the text in Column B of the Input row.
+
+To add a new agent: add a new sheet named exactly as the agent's URL-slug (e.g. `my-new-agent`).
+
+### Output file — `Agents/Agents_Output_DD-MM-YYYY_HH.MM.xlsx`
+
+Created automatically after each agent test run. Saved in the `Agents/` folder alongside the input file.
+
+| Sheet | Contents |
+|---|---|
+| Per-agent sheet | Agent name, Status (PASSED/FAILED), Timestamp, full Input text, captured AI Output |
+| `Summary` | One row per agent — Name, Status, Output preview (first 200 chars), Timestamp |
+
+**New output file is created for every run** — previous runs are not overwritten.
+
+### Test cases added (19–22)
+
+| # | Test name | Agent |
+|---|---|---|
+| 19 | Agent Test: quality-reviewer | Reviews and corrects text grammar/style |
+| 20 | Agent Test: task-planner | Generates structured test plans from requirements |
+| 21 | Agent Test: doc-researcher | Researches and compares document content |
+| 22 | Agent Test: summarizer | Summarises multi-part outputs into one paragraph |
+
+---
+
+## 8. Running the Tests
+
+### Run on `main` branch — 18 UI tests
 
 ```bash
+git checkout main
 npx playwright test --headed --project=chromium
 ```
 
-This is the **primary command** used for all test runs. It:
-- Opens a real Chromium browser window (headed mode) so you can watch the test flow
-- Runs all 18 tests in serial order
-- Generates a timestamped Extent HTML report + PDF automatically
-- Generates a Playwright built-in HTML report in a timestamped folder
+Runs tests 01–18 (full UI end-to-end flow).
+
+### Run on `feature/agent-test-runner` branch — 22 tests
+
+```bash
+git checkout feature/agent-test-runner
+npx playwright test --headed --project=chromium
+```
+
+Runs all 22 tests: 4 live agent AI tests (19–22) first, then the 18 UI tests (01–18). Output Excel is saved to `Agents/Agents_Output_DD-MM-YYYY_HH.MM.xlsx`.
 
 ### Run using npm script shortcut
 
@@ -340,7 +408,7 @@ This is the **primary command** used for all test runs. It:
 npm test
 ```
 
-Equivalent to the command above — defined in `package.json`.
+Equivalent to the above — works on both branches.
 
 ### Run a single specific test by name
 
@@ -729,8 +797,10 @@ The reports folder is not in GitHub (gitignored). All past reports remain on you
 
 | What you want to do | Command |
 |---|---|
-| Run all 18 tests (headed Chromium) | `npx playwright test --headed --project=chromium` |
-| Run all tests (npm shortcut) | `npm test` |
+| Run 18 UI tests (main branch) | `git checkout main && npx playwright test --headed --project=chromium` |
+| Run 22 tests — UI + Agent Runner (feature branch) | `git checkout feature/agent-test-runner && npx playwright test --headed --project=chromium` |
+| Run all tests (npm shortcut, current branch) | `npm test` |
+| Run only the agent runner tests | `npx playwright test tests/localhost8085-agent-runner.spec.ts --headed --project=chromium` |
 | Run a specific test by number/name | `npx playwright test --headed --project=chromium -g "13"` |
 | Run headless (no browser window) | `npx playwright test --project=chromium` |
 | View the Playwright HTML report | `npx playwright show-report reports/index_DD-MM-YYYY_HH.MM` |

@@ -30,8 +30,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* 1 worker — keeps both spec files sequential so agent states don't conflict */
+  workers: 1,
   /* Reporters:
      1. Custom Extent-style HTML — screenshots + env table + pass/fail/skip dashboard
      2. Built-in HTML  — Playwright's own report (timestamped folder)
